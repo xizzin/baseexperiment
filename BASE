@@ -1,0 +1,148 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import sqlite3
+
+app = FastAPI()
+
+
+def connect_to_database():
+    return sqlite3.connect('MPT.db')
+
+
+def create_table():
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS People (
+        id INTEGER PRIMARY KEY,
+        firstname TEXT NOT NULL,
+        secondname TEXT NOT NULl,
+        lastname TEXT,
+        job TEXT NOT NULL  
+        )
+        ''')
+
+    connection.commit()
+    connection.close()
+
+
+def insert_person(firstname, secondname, lastname, job):
+    connection = connect_to_database()
+    cursor = connection.cursor()
+    cursor.execute('INSERT INTO People (firstname, secondname, lastname, job) VALUES (?, ?, ?, ?)', (firstname, secondname, lastname, job))
+
+    connection.commit()
+    connection.close()
+
+
+def select_all():
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    cursor.execute('SELECT * FROM People')
+    people = cursor.fetchall()
+
+    for person in people:
+        print(person)
+
+    connection.close()
+
+
+def select_by_job(job):
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    cursor.execute('SELECT * FROM People WHERE job = ?', (job,))
+    result = cursor.fetchall()
+
+    for person in result:
+        print(person)
+
+    connection.close()
+
+
+def update_job_by_firstname(firstname, newjob):
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    cursor.execute('UPDATE People SET job = ? WHERE firstname = ?', (newjob, firstname))
+    connection.commit()
+    connection.close()
+
+
+def delete_person_by_firstname(firstname):
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    cursor.execute('DELETE FROM People WHERE firtsname = ?', (firstname,))
+    connection.commit()
+    connection.close()
+
+
+def main():
+    create_table()
+
+    while True:
+        print("выберите действие")
+        print("1 - добавить работника")
+        print("2 - посмотреть список всех работников")
+        print("3 - найти работника по должности ")
+        print("4 - изменить должность работника")
+        print("5 - уволить работника ")
+        print("0 - выйти ")
+
+        choice = int(input())
+        match choice:
+            case 1:
+                fn = input("Введите фамилию работника").capitalize().strip()
+                sn = input("Введите имя работника").capitalize().strip()
+                ln = input("Введите отчество работника").capitalize().strip()
+                j = input("Введите должность работника").capitalize().strip()
+                print(f"{fn} {sn} {ln} с должностью {j} был добавлен!")
+                insert_person(fn, sn, ln, j)
+            case 2:
+                print("список работников:")
+                select_all()
+            case 3:
+                jtwo = input("Введите должность работника").capitalize().strip()
+                select_by_job(jtwo)
+            case 4:
+                fntwo= input("введите фамилию работника, должность которого вы хотите изменить: ").capitalize().strip()
+                newj = input("введите новую должность").capitalize().strip()
+                print("Обновлено!")
+                update_job_by_firstname(fntwo, newj)
+            case 5:
+                fnthree = input("введите фамилию работника, которого вы хотите уволить").capitalize().strip()
+                delete_person_by_firstname(fnthree)
+                print("Обновлено!")
+            case 0:
+                break
+
+
+class PeopleCreate(BaseModel):
+    firstname: str
+    secondname: str
+    lastname: str
+    job: str
+
+
+@app.post("/People/", response_model = PeopleCreate)
+async def create_person(person: PeopleCreate):
+    insert_person(person.firstname, person.secondname, person.lastname, person.job)
+    return person
+
+
+@app.get("/People/")
+async def read_person():
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    cursor.execute('SELECT * FROM People')
+    peoples = cursor.fetchall()
+
+    connection.close()
+    return{"people": peoples}
+
+
+main()
